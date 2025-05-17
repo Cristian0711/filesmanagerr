@@ -4,10 +4,102 @@ file operations, and other storage-related functionality.
 """
 import os
 import json
+import pickle
 from datetime import datetime
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Set
 
 from app.core.config import Config, logger
+
+
+class TorrentStorage:
+    """
+    Class to manage persistent storage of torrent information
+    """
+    _storage_file = "torrents.pickle"
+    _torrents = {}  # hash -> {metadata}
+    
+    @classmethod
+    def initialize(cls):
+        """Initialize the torrent storage system"""
+        if os.path.exists(cls._storage_file):
+            try:
+                with open(cls._storage_file, 'rb') as f:
+                    cls._torrents = pickle.load(f)
+                logger.info(f"Loaded {len(cls._torrents)} torrents from storage")
+            except Exception as e:
+                logger.error(f"Error loading torrent storage: {e}")
+                cls._torrents = {}
+    
+    @classmethod
+    def save_torrent_info(cls, download_id: str, media_id: int, media_title: str, 
+                         media_path: str, torrent_path: str, media_type: str):
+        """
+        Save torrent information for later use
+        
+        Args:
+            download_id: Torrent hash
+            media_id: Radarr/Sonarr media ID
+            media_title: Title of the media
+            media_path: Path where media is stored
+            torrent_path: Path where torrent files are downloaded
+            media_type: Type of media ("movie" or "series")
+        """
+        cls._torrents[download_id] = {
+            'media_id': media_id,
+            'media_title': media_title,
+            'media_path': media_path,
+            'torrent_path': torrent_path,
+            'media_type': media_type,
+            'added_date': datetime.now().isoformat()
+        }
+        cls._save_to_disk()
+        logger.info(f"Stored torrent info for {media_title} (ID: {download_id})")
+    
+    @classmethod
+    def get_torrent_info(cls, download_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get stored information about a torrent
+        
+        Args:
+            download_id: Torrent hash
+            
+        Returns:
+            Dictionary with torrent information or None if not found
+        """
+        return cls._torrents.get(download_id)
+    
+    @classmethod
+    def delete_torrent_info(cls, download_id: str) -> bool:
+        """
+        Remove a torrent from storage
+        
+        Args:
+            download_id: Torrent hash
+            
+        Returns:
+            True if torrent was found and removed, False otherwise
+        """
+        if download_id in cls._torrents:
+            media_title = cls._torrents[download_id].get('media_title', 'Unknown')
+            del cls._torrents[download_id]
+            cls._save_to_disk()
+            logger.info(f"Removed torrent info for {media_title} (ID: {download_id})")
+            return True
+        return False
+    
+    @classmethod
+    def get_all_torrents(cls) -> Dict[str, Dict[str, Any]]:
+        """Get all stored torrents"""
+        return cls._torrents
+    
+    @classmethod
+    def _save_to_disk(cls):
+        """Save the torrent dictionary to disk"""
+        try:
+            with open(cls._storage_file, 'wb') as f:
+                pickle.dump(cls._torrents, f)
+        except Exception as e:
+            logger.error(f"Error saving torrent storage: {e}")
 
 
 class WebhookStorage:
@@ -129,6 +221,28 @@ class FileOperations:
                 
         except Exception as e:
             logger.error(f"Error creating hardlink for {source_file}: {e}")
+            return False
+    
+    @staticmethod
+    def delete_file_or_folder(path: str) -> bool:
+        """
+        Delete a file or folder
+        Returns True if successful, False otherwise
+        """
+        try:
+            if os.path.isfile(path):
+                os.remove(path)
+                logger.info(f"Deleted file: {path}")
+            elif os.path.isdir(path):
+                import shutil
+                shutil.rmtree(path)
+                logger.info(f"Deleted directory: {path}")
+            else:
+                logger.warning(f"Path not found for deletion: {path}")
+                return False
+            return True
+        except Exception as e:
+            logger.error(f"Error deleting path {path}: {e}")
             return False
 
 

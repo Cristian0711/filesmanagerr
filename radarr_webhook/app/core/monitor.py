@@ -9,11 +9,14 @@ from typing import Dict, Any, Set, Type, List
 
 from app.core.config import Config, logger
 from app.core.models import DownloadInfo, ArrEvent
-from app.core.storage import FileOperations, DownloadLocator
+from app.core.storage import FileOperations, DownloadLocator, TorrentStorage
 
 
 # Global storage for active downloads
 active_downloads: Dict[str, DownloadInfo] = {}
+
+# Initialize torrent storage
+TorrentStorage.initialize()
 
 
 class DownloadMonitor:
@@ -59,6 +62,29 @@ class DownloadMonitor:
         # Set media type based on event
         download_info.media_type = event.media_type
         
+        # Try to get media ID
+        media_id = None
+        if hasattr(event, 'movie') and event.movie and hasattr(event.movie, 'id'):
+            media_id = event.movie.id
+        elif hasattr(event, 'series') and event.series and hasattr(event.series, 'id'):
+            media_id = event.series.id
+        download_info.media_id = media_id
+        
+        # Find torrent path
+        torrent_path = DownloadLocator.find_torrent_folder(download_id)
+        if torrent_path:
+            download_info.torrent_path = torrent_path
+            
+            # Store torrent information for later use
+            TorrentStorage.save_torrent_info(
+                download_id=download_id,
+                media_id=media_id,
+                media_title=media_title,
+                media_path=media_folder,
+                torrent_path=torrent_path,
+                media_type=event.media_type
+            )
+        
         # Add to active downloads dictionary
         active_downloads[download_id] = download_info
         
@@ -89,6 +115,56 @@ class DownloadMonitor:
             return True
         
         return False
+    
+    @staticmethod
+    def handle_delete_event(event: ArrEvent) -> bool:
+        """
+        Handle a delete event by removing the torrent and/or files
+        """
+        # Try to get the media ID from the event
+        media_id = None
+        if hasattr(event, 'movie') and event.movie and hasattr(event.movie, 'id'):
+            media_id = event.movie.id
+        elif hasattr(event, 'series') and event.series and hasattr(event.series, 'id'):
+            media_id = event.series.id
+        
+        if not media_id:
+            logger.warning("Delete event missing required media ID")
+            return False
+            
+        # Find all torrents associated with this media
+        found_torrents = []
+        for torrent_hash, info in TorrentStorage.get_all_torrents().items():
+            if info.get('media_id') == media_id:
+                found_torrents.append(torrent_hash)
+                
+        if not found_torrents:
+            logger.warning(f"No torrents found for media ID {media_id}")
+            return False
+            
+        success = True
+        for torrent_hash in found_torrents:
+            torrent_info = TorrentStorage.get_torrent_info(torrent_hash)
+            if not torrent_info:
+                continue
+                
+            # Delete from qBittorrent if enabled
+            if Config.QBITTORRENT_ENABLED and Config.QBITTORRENT_USE_API:
+                from app.services.qbittorrent import QBittorrentClient
+                qbt = QBittorrentClient()
+                if not qbt.delete_torrent(torrent_hash, with_files=True):
+                    success = False
+            
+            # Delete the torrent path if it exists and not already deleted by qBittorrent
+            torrent_path = torrent_info.get('torrent_path')
+            if torrent_path and os.path.exists(torrent_path):
+                if not FileOperations.delete_file_or_folder(torrent_path):
+                    success = False
+            
+            # Remove from storage
+            TorrentStorage.delete_torrent_info(torrent_hash)
+            
+        return success
     
     @staticmethod
     def monitor_download(download_id: str) -> None:
@@ -244,6 +320,21 @@ class DownloadMonitor:
                 "first_seen": info.first_seen,
                 "last_check": info.last_check,
                 "processed_files_count": len(info.processed_files)
+            })
+        
+        # Check stored information
+        stored_info = TorrentStorage.get_torrent_info(torrent_hash)
+        if stored_info:
+            result.update({
+                "found": True,
+                "stored_info": {
+                    "media_id": stored_info.get("media_id"),
+                    "media_title": stored_info.get("media_title"),
+                    "media_path": stored_info.get("media_path"),
+                    "torrent_path": stored_info.get("torrent_path"),
+                    "media_type": stored_info.get("media_type"),
+                    "added_date": stored_info.get("added_date")
+                }
             })
         
         # Check qBittorrent status if enabled

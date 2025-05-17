@@ -131,6 +131,12 @@ class DownloadInfo:
         self.last_check = datetime.now().isoformat()
         self.processed_files: Set[str] = set()
         self.media_type = "unknown"  # Will be set to "movie" or "series"
+        
+        # New fields for torrent management
+        self.torrent_path = None
+        self.media_id = None
+        self.should_delete_files = False
+        self.should_delete_torrent = False
     
     def update_check_time(self):
         """Update the last check timestamp"""

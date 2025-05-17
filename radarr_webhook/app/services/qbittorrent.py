@@ -3,6 +3,7 @@ qBittorrent client module for interfacing with qBittorrent.
 """
 import qbittorrentapi
 from typing import Dict, Any, Optional, List, Tuple
+import os
 
 from app.core.config import Config, logger
 
@@ -154,8 +155,50 @@ class QBittorrentClient:
             return None
         
         # Try different path attributes, as they can vary by qBittorrent version
-        for path_attr in ['save_path', 'content_path', 'download_path']:
+        for path_attr in ['content_path', 'save_path']:
             if path_attr in info and info[path_attr]:
-                return info[path_attr] + '/' + info['name']
+                path = info[path_attr]
+                # If it's just save_path, we need to append the torrent name
+                if path_attr == 'save_path' and 'name' in info:
+                    path = os.path.join(path, info['name'])
+                return path
         
-        return None 
+        return None
+    
+    def delete_torrent(self, torrent_hash: str, with_files: bool = False) -> bool:
+        """
+        Delete a torrent from qBittorrent
+        
+        Args:
+            torrent_hash: The hash of the torrent to delete
+            with_files: If True, also delete downloaded files
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self.connected:
+            logger.warning("qBittorrent client not connected")
+            return False
+        
+        try:
+            # Normalize the hash
+            torrent_hash = torrent_hash.lower()
+            
+            # Get torrent info first to log what we're deleting
+            _, info = self.get_torrent_status(torrent_hash)
+            if not info:
+                logger.warning(f"Torrent {torrent_hash} not found for deletion")
+                return False
+                
+            torrent_name = info.get('name', 'Unknown')
+            
+            # Delete the torrent
+            self.client.torrents_delete(delete_files=with_files, hashes=torrent_hash)
+            
+            action = "and files " if with_files else ""
+            logger.info(f"Deleted torrent {action}for {torrent_name} (ID: {torrent_hash})")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error deleting torrent {torrent_hash}: {e}")
+            return False 
