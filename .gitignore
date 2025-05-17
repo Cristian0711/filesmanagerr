@@ -1,0 +1,6 @@
+webhook_history.json
+last_webhook_data.json
+example_webhook_data.json
+webhook.log
+hook
+**/__pycache__/

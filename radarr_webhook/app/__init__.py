@@ -1,0 +1,1 @@
+# Fișier de inițializare pentru pachetul app 
