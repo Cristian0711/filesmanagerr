@@ -156,6 +156,6 @@ class QBittorrentClient:
         # Try different path attributes, as they can vary by qBittorrent version
         for path_attr in ['save_path', 'content_path', 'download_path']:
             if path_attr in info and info[path_attr]:
-                return info[path_attr]
+                return info[path_attr] + '/' + info['name']
         
         return None 
