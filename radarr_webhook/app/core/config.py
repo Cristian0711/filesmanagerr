@@ -1,5 +1,5 @@
 """
-Configuration module for Radarr webhook application.
+Configuration module for *arr webhook applications.
 Handles environment variables, settings, and shared configurations.
 """
 import os
@@ -20,7 +20,7 @@ def setup_logging():
             logging.StreamHandler()
         ]
     )
-    return logging.getLogger("radarr-webhook")
+    return logging.getLogger("arr-webhook")
 
 # Create logger instance
 logger = setup_logging()
@@ -41,7 +41,7 @@ class Config:
     
     # File paths
     WEBHOOK_LOG_FILE = os.getenv('WEBHOOK_LOG_FILE', 'webhook_history.json')
-    QBITTORRENT_PATH = os.getenv('QBITTORRENT_PATH', '/mnt/downloads')
+    DOWNLOAD_PATH = os.getenv('DOWNLOAD_PATH', '/mnt/downloads')
     
     # qBittorrent connection settings
     QBITTORRENT_ENABLED = os.getenv('QBITTORRENT_ENABLED', 'true').lower() == 'true'
@@ -50,8 +50,10 @@ class Config:
     QBITTORRENT_USERNAME = os.getenv('QBITTORRENT_USERNAME', 'admin')
     QBITTORRENT_PASSWORD = os.getenv('QBITTORRENT_PASSWORD', 'adminadmin')
     QBITTORRENT_USE_API = os.getenv('QBITTORRENT_USE_API', 'true').lower() == 'true'
+    QBITTORRENT_PATH = os.getenv('QBITTORRENT_PATH', DOWNLOAD_PATH)
     
     # Download monitor settings
+    DOWNLOAD_MONITOR_ENABLED = os.getenv('DOWNLOAD_MONITOR_ENABLED', 'true').lower() == 'true'
     MONITOR_INTERVAL = int(os.getenv('MONITOR_INTERVAL', 60))  # Seconds between checks
     MAX_MONITOR_CHECKS = int(os.getenv('MAX_MONITOR_CHECKS', 100))
     MIN_FILE_SIZE = int(os.getenv('MIN_FILE_SIZE', 10*1024*1024))  # 10MB default
@@ -59,6 +61,10 @@ class Config:
     # Supported media extensions
     MEDIA_EXTENSIONS = ['.mkv', '.mp4', '.avi', '.mov', '.m4v']
     SUBTITLE_EXTENSIONS = ['.srt', '.sub', '.idx', '.ass']
+    
+    # Service type
+    RADARR_ENABLED = os.getenv('RADARR_ENABLED', 'true').lower() == 'true'
+    SONARR_ENABLED = os.getenv('SONARR_ENABLED', 'true').lower() == 'true'
     
     @classmethod
     def get_supported_extensions(cls):

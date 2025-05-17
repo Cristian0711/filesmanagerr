@@ -1,20 +1,47 @@
 """
-Main application entry point for Radarr Webhook application.
+Main entry point for the application.
+Starts the Flask server with webhook endpoints.
 """
-from app.config import Config, logger
-from app.api import create_app
+import os
+import sys
 
-# Create the Flask application
-app = create_app()
+# Add parent directory to path to allow imports
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.append(parent_dir)
 
-def run_app():
-    """Run the Flask application with configured settings"""
-    port = Config.PORT
-    host = Config.HOST
-    debug = Config.DEBUG
+from app.api import app
+from app.core.config import Config, setup_logging, logger
+
+
+def main():
+    """
+    Main entry point function
+    """
+    # Set up logging
+    setup_logging()
     
-    logger.info(f"Starting Radarr Webhook Receiver on {host}:{port}")
-    app.run(host=host, port=port, debug=debug)
+    # Log startup details
+    logger.info("Starting Radarr/Sonarr Webhook Server")
+    logger.info(f"Server running on http://{Config.HOST}:{Config.PORT}")
+    logger.info(f"Debug mode: {Config.DEBUG}")
+    logger.info(f"Download monitoring: {'Enabled' if Config.DOWNLOAD_MONITOR_ENABLED else 'Disabled'}")
+    logger.info(f"Radarr support: {'Enabled' if Config.RADARR_ENABLED else 'Disabled'}")
+    logger.info(f"Sonarr support: {'Enabled' if Config.SONARR_ENABLED else 'Disabled'}")
+    logger.info(f"qBittorrent integration: {'Enabled' if Config.QBITTORRENT_ENABLED else 'Disabled'}")
+    
+    # Start the Flask app
+    app.run(
+        host=Config.HOST,
+        port=Config.PORT,
+        debug=Config.DEBUG,
+        threaded=True  # Allow multiple concurrent requests
+    )
 
-if __name__ == '__main__':
-    run_app() 
+
+# Alias for backwards compatibility with run.py
+run_app = main
+
+
+if __name__ == "__main__":
+    main() 

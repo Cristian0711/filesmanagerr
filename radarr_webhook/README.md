@@ -1,164 +1,140 @@
-# Radarr Webhook Receiver
+# Radarr & Sonarr Webhook Server
 
-A Python application that receives webhook notifications from Radarr and creates hardlinks for downloaded media files.
+A Python application that receives webhooks from Radarr and Sonarr and monitors downloads to create hardlinks for media files as they download.
 
 ## Features
 
-- Receives webhook notifications from Radarr
-- Automatically creates hardlinks from torrent files to movie folders
-- Monitors in-progress downloads and links files as they appear
-- Integrates with qBittorrent API to check download status
-- Supports all Radarr event types (Grab, Download, Rename, etc.)
-- Provides authentication options (token-based or username/password)
-- Maintains a history of webhook events
-- Well-organized modular code structure for easy customization
+- Receives and processes webhook events from both Radarr and Sonarr
+- Monitors downloads in real-time
+- Creates hardlinks for media files as they download
+- Supports multiple download clients via qBittorrent API
+- Provides status monitoring API
+- Secure authentication options
+
+## Requirements
+
+- Python 3.8+
+- qBittorrent (optional, for download monitoring)
+- Radarr and/or Sonarr with webhook notifications enabled
 
 ## Installation
 
-1. Clone this repository:
+1. Clone the repository:
+
 ```bash
-git clone https://github.com/yourusername/radarr-webhook.git
-cd radarr-webhook
+git clone https://github.com/yourusername/radarr-sonarr-webhook.git
+cd radarr-sonarr-webhook
 ```
 
-2. Create a virtual environment and install dependencies:
+2. Create a virtual environment:
+
 ```bash
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+3. Install dependencies:
+
+```bash
 pip install -r requirements.txt
 ```
 
-3. Create a `.env` file based on the example:
-```bash
-cp .env.example .env
+4. Create a `.env` file in the root directory with your configuration:
+
 ```
+# Server settings
+FLASK_ENV=production
+DEBUG=False
+PORT=9090
+HOST=0.0.0.0
 
-4. Edit the `.env` file to configure your settings:
-```ini
-# Flask server configuration
-FLASK_APP=app.main
-FLASK_ENV=development
-FLASK_DEBUG=1
-PORT=5000
-HOST=0.0.0.0  # Change to your IP if needed
-
-# Authentication credentials for webhook (if needed)
-WEBHOOK_USERNAME=your_username
-WEBHOOK_PASSWORD=your_password
-
-# Secret token for authentication (optional)
-AUTH_TOKEN=your_secret_token_here
+# Authentication
+AUTH_TOKEN=your_secure_token_here
+WEBHOOK_USERNAME=username
+WEBHOOK_PASSWORD=password
 
 # File paths
-WEBHOOK_LOG_FILE=webhook_history.json
-QBITTORRENT_PATH=/path/to/downloads  # Change to your actual download path
+WEBHOOK_LOG_FILE=./logs/webhooks.log
+DOWNLOAD_PATH=/path/to/downloads
 
-# qBittorrent connection settings
-QBITTORRENT_ENABLED=true
+# qBittorrent settings
+QBITTORRENT_ENABLED=True
 QBITTORRENT_HOST=localhost
 QBITTORRENT_PORT=8080
 QBITTORRENT_USERNAME=admin
 QBITTORRENT_PASSWORD=adminadmin
-QBITTORRENT_USE_API=true
+QBITTORRENT_USE_API=True
 
-# Download monitor settings
-MONITOR_INTERVAL=60
-MAX_MONITOR_CHECKS=100
-MIN_FILE_SIZE=10485760  # 10MB in bytes
+# Features
+DOWNLOAD_MONITOR_ENABLED=True
+RADARR_ENABLED=True
+SONARR_ENABLED=True
 ```
 
 ## Usage
 
 ### Running the application
 
-Start the server:
 ```bash
-python run.py
+# Development mode
+python -m app.main
+
+# Production mode
+gunicorn -w 4 -b 0.0.0.0:9090 "app.main:app"
 ```
 
-For production use, you might want to use Gunicorn:
-```bash
-gunicorn -b 0.0.0.0:5000 app.main:app
-```
+### Configuring Radarr/Sonarr
 
-### Configuring Radarr
+1. In Radarr/Sonarr, go to Settings > Connect > + > Webhook
+2. Enter the URL to your webhook server:
+   - For generic endpoint: `http://your-server:9090/webhook`
+   - For Radarr specific: `http://your-server:9090/webhook/radarr`
+   - For Sonarr specific: `http://your-server:9090/webhook/sonarr`
+3. If using Basic Auth, configure your username and password
 
-1. In Radarr, go to Settings > Connect > + (Add)
-2. Select "Webhook" as the notification type
-3. Enter a name (e.g., "Hardlink Webhook")
-4. Configure the webhook:
-   - URL: `http://your-server-ip:5000/webhook`
-   - Method: POST
-   - Username/Password: Enter if you configured them in your .env file
-   - Select which events should trigger the webhook (at least "On Grab" is required)
+### API Endpoints
 
-5. Test the connection and save the settings
+- `POST /webhook`: Generic webhook endpoint (auto-detects service)
+- `POST /webhook/radarr`: Radarr-specific webhook endpoint
+- `POST /webhook/sonarr`: Sonarr-specific webhook endpoint
+- `GET /status`: Status of active downloads
+- `GET /status/<torrent_hash>`: Status of a specific torrent
+- `GET /last_webhook`: View the last received webhook
+- `GET /healthcheck`: Simple health check endpoint
 
-### Authentication Options
+## Development
 
-This application supports multiple authentication methods:
-
-1. **Token-based authentication**:
-   - Set `AUTH_TOKEN` in your `.env` file
-   - Add the token to your webhook URL: `http://your-server-ip:5000/webhook?token=your_secret_token`
-
-2. **Basic HTTP authentication**:
-   - Set `WEBHOOK_USERNAME` and `WEBHOOK_PASSWORD` in your `.env` file
-   - Configure these credentials in Radarr's webhook settings
-
-### qBittorrent Integration
-
-For qBittorrent integration to work:
-
-1. Enable the qBittorrent WebUI in Tools > Options > Web UI
-2. Set up the port, username, and password
-3. Configure these settings in the `.env` file
-4. The application will use the qBittorrent API to:
-   - Find exact download paths
-   - Check if downloads are completed
-   - Get detailed torrent information
-
-## API Endpoints
-
-- `GET /` - Status information
-- `POST /webhook` or `POST /` - Webhook receiver endpoint
-- `GET /status` - Shows currently monitored downloads
-- `GET /torrent/<hash>` - Get status of a specific torrent by hash
-
-## Project Structure
+### Project Structure
 
 ```
 radarr_webhook/
 ├── app/
-│   ├── __init__.py
-│   ├── api.py         # Flask API and routing
-│   ├── config.py      # Configuration and environment variables
-│   ├── handlers.py    # Event handling logic
-│   ├── main.py        # Application entry point 
-│   ├── models.py      # Data models for Radarr events
-│   ├── monitor.py     # Download monitoring and hardlinking
-│   ├── qbt_client.py  # qBittorrent API client
-│   └── storage.py     # File operations and data persistence
-├── .env               # Environment variables (create from .env.example)
-├── .env.example       # Example environment variables
-├── requirements.txt   # Python dependencies
-├── README.md          # This documentation
-└── run.py            # Startup script
+│   ├── core/           # Shared core functionality
+│   │   ├── config.py   # Configuration settings
+│   │   ├── models.py   # Base models
+│   │   ├── monitor.py  # Download monitoring
+│   │   └── storage.py  # File operations
+│   ├── radarr/         # Radarr-specific code
+│   │   ├── models.py   # Radarr models
+│   │   └── monitor.py  # Radarr monitor
+│   ├── sonarr/         # Sonarr-specific code
+│   │   ├── models.py   # Sonarr models
+│   │   └── monitor.py  # Sonarr monitor
+│   ├── services/       # External services
+│   │   └── qbittorrent.py  # qBittorrent client
+│   ├── api.py          # Flask API endpoints
+│   ├── handlers.py     # Webhook handling logic
+│   └── main.py         # Application entry point
+├── logs/               # Log files
+├── .env                # Environment configuration
+├── requirements.txt    # Python dependencies
+└── README.md           # This file
 ```
-
-## Customizing Behavior
-
-To customize how different events are processed:
-
-1. For event processing logic, check `app/handlers.py`
-2. For download monitoring and hardlinking, check `app/monitor.py`
-3. For file operations, check `app/storage.py`
-4. For qBittorrent integration, check `app/qbt_client.py`
-
-## Logging
-
-The application logs to both console and a file named `webhook.log`. Check this file for detailed information about the application's operation.
 
 ## License
 
-MIT 
+MIT License
+
+## Contributing
+
+Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change. 

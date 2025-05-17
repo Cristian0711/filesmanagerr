@@ -4,7 +4,7 @@ qBittorrent client module for interfacing with qBittorrent.
 import qbittorrentapi
 from typing import Dict, Any, Optional, List, Tuple
 
-from app.config import Config, logger
+from app.core.config import Config, logger
 
 
 class QBittorrentClient:
@@ -153,10 +153,9 @@ class QBittorrentClient:
         if not info:
             return None
         
-        print(info)
         # Try different path attributes, as they can vary by qBittorrent version
         for path_attr in ['save_path', 'content_path', 'download_path']:
             if path_attr in info and info[path_attr]:
-                return info[path_attr] + '/' +info['name']
+                return info[path_attr]
         
         return None 

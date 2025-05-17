@@ -7,7 +7,7 @@ import json
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 
-from app.config import Config, logger
+from app.core.config import Config, logger
 
 
 class WebhookStorage:
@@ -146,7 +146,7 @@ class DownloadLocator:
         """
         # Try to use qBittorrent API first if enabled
         if Config.QBITTORRENT_ENABLED and Config.QBITTORRENT_USE_API:
-            from app.qbt_client import QBittorrentClient
+            from app.services.qbittorrent import QBittorrentClient
             
             try:
                 qbt = QBittorrentClient()
@@ -160,7 +160,7 @@ class DownloadLocator:
                 is_completed, info = qbt.get_torrent_status(download_id)
                 if info:  # Torrent found but no specific path
                     logger.info(f"Using default download folder from qBittorrent API")
-                    return Config.QBITTORRENT_PATH
+                    return Config.DOWNLOAD_PATH
             except Exception as e:
                 logger.error(f"Error using qBittorrent API: {e}")
         
@@ -176,8 +176,8 @@ class DownloadLocator:
         """
         # Search for folder with the torrent hash as name or containing a .torrent file with that hash
         search_paths = [
-            os.path.join(Config.QBITTORRENT_PATH, download_id),       # Direct folder match
-            os.path.join(Config.QBITTORRENT_PATH, download_id.lower()) # Lowercase hash
+            os.path.join(Config.DOWNLOAD_PATH, download_id),       # Direct folder match
+            os.path.join(Config.DOWNLOAD_PATH, download_id.lower()) # Lowercase hash
         ]
         
         # Try to find an exact match first
@@ -188,8 +188,8 @@ class DownloadLocator:
                 
         # Otherwise scan the downloads directory for matching folders
         try:
-            logger.info(f"Searching for download {download_id} in {Config.QBITTORRENT_PATH}")
-            for root, dirs, files in os.walk(Config.QBITTORRENT_PATH):
+            logger.info(f"Searching for download {download_id} in {Config.DOWNLOAD_PATH}")
+            for root, dirs, files in os.walk(Config.DOWNLOAD_PATH):
                 for dir_name in dirs:
                     full_path = os.path.join(root, dir_name)
                     # Check if this might be our download (implementation depends on your naming scheme)
@@ -199,7 +199,7 @@ class DownloadLocator:
                         
             # If still not found, return the base downloads path as a fallback
             logger.warning(f"Could not find specific folder for {download_id}, using base path")
-            return Config.QBITTORRENT_PATH
+            return Config.DOWNLOAD_PATH
         except Exception as e:
             logger.error(f"Error searching for download folder: {e}")
             return None
@@ -217,7 +217,7 @@ class DownloadLocator:
             return False
             
         try:
-            from app.qbt_client import QBittorrentClient
+            from app.services.qbittorrent import QBittorrentClient
             qbt = QBittorrentClient()
             is_completed, _ = qbt.get_torrent_status(download_id)
             return is_completed
