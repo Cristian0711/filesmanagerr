@@ -234,7 +234,24 @@ class DownloadMonitor:
         """
         Process all files in the download folder and create hardlinks for new files
         """
-        # Get all files in the folder and its subfolders
+        # Check if folder_path is actually a file (single file torrent)
+        if os.path.isfile(folder_path):
+            logger.info(f"Single file torrent detected: {folder_path}")
+            # Skip if already processed
+            if download_info.is_file_processed(folder_path):
+                return
+                
+            # Check if this is a file we should process
+            if FileOperations.is_valid_media_file(folder_path):
+                # Create hardlink
+                if FileOperations.create_hardlink(folder_path, download_info.media_folder):
+                    # Mark as processed
+                    download_info.add_processed_file(folder_path)
+                    file_name = os.path.basename(folder_path)
+                    logger.info(f"Processed single file {file_name} for {download_info.media_title}")
+            return
+            
+        # Handle regular folder case - get all files in the folder and its subfolders
         for root, _, files in os.walk(folder_path):
             for file_name in files:
                 source_file = os.path.join(root, file_name)

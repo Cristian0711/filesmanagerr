@@ -148,20 +148,34 @@ class QBittorrentClient:
             
         Returns:
             Path where the torrent is being downloaded, or None if not found
+            For single-file torrents, returns the full path to the file
         """
         _, info = self.get_torrent_status(torrent_hash)
         
         if not info:
             return None
         
-        # Try different path attributes, as they can vary by qBittorrent version
-        for path_attr in ['content_path', 'save_path']:
-            if path_attr in info and info[path_attr]:
-                path = info[path_attr]
-                # If it's just save_path, we need to append the torrent name
-                if path_attr == 'save_path' and 'name' in info:
-                    path = os.path.join(path, info['name'])
-                return path
+        # First try to get content_path which points directly to the content (file or folder)
+        if 'content_path' in info and info['content_path']:
+            logger.info(f"Found content_path for {torrent_hash}: {info['content_path']}")
+            return info['content_path']
+            
+        # If not available, check save_path + name
+        if 'save_path' in info and info['save_path'] and 'name' in info:
+            path = os.path.join(info['save_path'], info['name'])
+            logger.info(f"Using constructed path for {torrent_hash}: {path}")
+            return path
+                
+        # Try to determine if this is a single file torrent by getting files
+        try:
+            files = self.get_torrent_files(torrent_hash)
+            if len(files) == 1 and 'save_path' in info and 'name' in info:
+                # This is a single file torrent
+                file_path = os.path.join(info['save_path'], files[0]['name'])
+                logger.info(f"Single file torrent {torrent_hash}: {file_path}")
+                return file_path
+        except Exception as e:
+            logger.error(f"Error checking torrent files: {e}")
         
         return None
     

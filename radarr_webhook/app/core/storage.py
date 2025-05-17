@@ -285,7 +285,7 @@ class DownloadLocator:
     @staticmethod
     def _find_torrent_folder_by_filesystem(download_id: str) -> Optional[str]:
         """
-        Traditional filesystem search to locate torrent folder.
+        Traditional filesystem search to locate torrent folder or file.
         This is used as a fallback when qBittorrent API is not available.
         """
         # Search for folder with the torrent hash as name or containing a .torrent file with that hash
@@ -296,14 +296,33 @@ class DownloadLocator:
         
         # Try to find an exact match first
         for path in search_paths:
-            if os.path.exists(path) and os.path.isdir(path):
-                logger.info(f"Found download folder by direct match: {path}")
-                return path
+            if os.path.exists(path):
+                if os.path.isdir(path):
+                    logger.info(f"Found download folder by direct match: {path}")
+                    return path
+                elif os.path.isfile(path) and FileOperations.is_valid_media_file(path):
+                    logger.info(f"Found download file by direct match: {path}")
+                    return path
                 
-        # Otherwise scan the downloads directory for matching folders
+        # Otherwise scan the downloads directory for matching folders and files
         try:
             logger.info(f"Searching for download {download_id} in {Config.DOWNLOAD_PATH}")
-            for root, dirs, files in os.walk(Config.DOWNLOAD_PATH):
+            
+            # Search for files first
+            for root, _, files in os.walk(Config.DOWNLOAD_PATH):
+                for file_name in files:
+                    # Skip files that aren't media files
+                    if not FileOperations.is_valid_media_file(os.path.join(root, file_name)):
+                        continue
+                        
+                    # Check if filename contains the hash
+                    if download_id.lower() in file_name.lower():
+                        file_path = os.path.join(root, file_name)
+                        logger.info(f"Found download file by partial match: {file_path}")
+                        return file_path
+            
+            # Then search for folders
+            for root, dirs, _ in os.walk(Config.DOWNLOAD_PATH):
                 for dir_name in dirs:
                     full_path = os.path.join(root, dir_name)
                     # Check if this might be our download (implementation depends on your naming scheme)
