@@ -7,6 +7,7 @@ import json
 import pickle
 from datetime import datetime
 from typing import Dict, Any, List, Optional, Set
+import sys
 
 from app.core.config import Config, logger
 
@@ -15,20 +16,45 @@ class TorrentStorage:
     """
     Class to manage persistent storage of torrent information
     """
-    _storage_file = "torrents.pickle"
+    _storage_file = None  # Will be set in initialize
     _torrents = {}  # hash -> {metadata}
     
     @classmethod
     def initialize(cls):
         """Initialize the torrent storage system"""
+        # Use the config directory for storage
+        config_dir = os.getenv('CONFIG_DIR', 'config')
+        
+        # Make sure the config directory exists
+        try:
+            if not os.path.exists(config_dir):
+                os.makedirs(config_dir, mode=0o777, exist_ok=True)
+            else:
+                # Ensure it's writable
+                os.chmod(config_dir, 0o777)
+        except Exception as e:
+            print(f"Error configuring config directory {config_dir}: {e}", file=sys.stderr)
+            # Fall back to current directory
+            config_dir = '.'
+            print(f"Falling back to current directory for config", file=sys.stderr)
+        
+        # Set the storage file path
+        cls._storage_file = os.path.join(config_dir, "torrents.pickle")
+        print(f"Torrent storage file location: {os.path.abspath(cls._storage_file)}", file=sys.stderr)
+        
+        # Try to load existing data
         if os.path.exists(cls._storage_file):
             try:
                 with open(cls._storage_file, 'rb') as f:
                     cls._torrents = pickle.load(f)
                 logger.info(f"Loaded {len(cls._torrents)} torrents from storage")
+                print(f"Loaded {len(cls._torrents)} torrents from storage", file=sys.stderr)
             except Exception as e:
                 logger.error(f"Error loading torrent storage: {e}")
+                print(f"Error loading torrent storage: {e}", file=sys.stderr)
                 cls._torrents = {}
+        else:
+            print(f"No existing torrent storage file found at {cls._storage_file}", file=sys.stderr)
     
     @classmethod
     def save_torrent_info(cls, download_id: str, media_id: int, media_title: str, 
@@ -96,10 +122,24 @@ class TorrentStorage:
     def _save_to_disk(cls):
         """Save the torrent dictionary to disk"""
         try:
-            with open(cls._storage_file, 'wb') as f:
+            # Make sure the directory exists
+            os.makedirs(os.path.dirname(cls._storage_file), exist_ok=True)
+            
+            # Use atomic writing pattern to prevent corruption
+            temp_file = cls._storage_file + '.tmp'
+            with open(temp_file, 'wb') as f:
                 pickle.dump(cls._torrents, f)
+            
+            # Replace the old file with the new one
+            if os.path.exists(cls._storage_file):
+                os.remove(cls._storage_file)
+            os.rename(temp_file, cls._storage_file)
+            
+            # Report success
+            print(f"Successfully saved {len(cls._torrents)} torrents to {cls._storage_file}", file=sys.stderr)
         except Exception as e:
             logger.error(f"Error saving torrent storage: {e}")
+            print(f"Error saving torrent storage to {cls._storage_file}: {e}", file=sys.stderr)
 
 
 class WebhookStorage:
@@ -109,17 +149,29 @@ class WebhookStorage:
     def save_latest_webhook(data: Dict[str, Any]) -> None:
         """Save the most recent webhook data to a file"""
         try:
-            with open('last_webhook_data.json', 'w') as f:
+            # Use the config directory
+            config_dir = os.getenv('CONFIG_DIR', 'config')
+            os.makedirs(config_dir, exist_ok=True)
+            
+            file_path = os.path.join(config_dir, 'last_webhook_data.json')
+            with open(file_path, 'w') as f:
                 json.dump(data, f, indent=4)
+            print(f"Saved latest webhook data to {file_path}", file=sys.stderr)
         except Exception as e:
             logger.error(f"Error saving latest webhook data: {e}")
+            print(f"Error saving latest webhook data: {e}", file=sys.stderr)
     
     @staticmethod
     def append_to_history(data: Dict[str, Any]) -> None:
         """
         Append webhook data to history file with timestamp
         """
-        history_file = Config.WEBHOOK_LOG_FILE
+        # Use the config directory
+        config_dir = os.getenv('CONFIG_DIR', 'config')
+        os.makedirs(config_dir, exist_ok=True)
+        
+        # Override the history file location to use config dir
+        history_file = os.path.join(config_dir, os.path.basename(Config.WEBHOOK_LOG_FILE))
         
         # Create a new entry with timestamp
         timestamp = datetime.now().isoformat()
@@ -137,6 +189,7 @@ class WebhookStorage:
             except json.JSONDecodeError:
                 # If file is corrupted, start fresh
                 logger.warning(f"Corrupted history file {history_file}, starting fresh")
+                print(f"Corrupted history file {history_file}, starting fresh", file=sys.stderr)
                 history = []
         
         # Append new entry
@@ -146,8 +199,10 @@ class WebhookStorage:
         try:
             with open(history_file, 'w') as f:
                 json.dump(history, f, indent=4)
+            print(f"Updated webhook history at {history_file}", file=sys.stderr)
         except Exception as e:
             logger.error(f"Error appending to webhook history: {e}")
+            print(f"Error appending to webhook history: {e}", file=sys.stderr)
 
 
 class FileOperations:

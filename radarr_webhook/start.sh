@@ -1,22 +1,29 @@
 #!/bin/bash
 # Setup script for radarr-webhook Docker environment
 
-# Create host directories if they don't exist
-mkdir -p ./logs ./config
+# Create required directories if they don't exist
+mkdir -p ./logs
+mkdir -p ./config
 
 # Set permissions to ensure Docker can write to them
-chmod -R 777 ./logs ./config
+chmod -R 777 ./logs
+chmod -R 777 ./config
 
-# Print message
-echo "Host directories prepared, starting containers..."
+# Report directory settings
+echo "Directory setup:"
+echo "- Logs directory: $(pwd)/logs"
+echo "- Config directory: $(pwd)/config"
+echo "- Current user: $(id)"
 
-# Export current user's ID for docker-compose
+# Export current user/group IDs for Docker
 export UID=$(id -u)
 export GID=$(id -g)
+echo "Exported UID=$UID and GID=$GID for Docker"
 
-# Start docker-compose
+# Start Docker containers in detached mode
+echo "Starting Docker containers..."
 docker-compose up -d
 
-# Display logs to verify it's working
-echo "Containers started. Showing logs:"
+# Show logs to verify operation
+echo "Showing container logs (press Ctrl+C to exit):"
 docker-compose logs -f 

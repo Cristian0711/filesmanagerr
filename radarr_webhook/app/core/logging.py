@@ -5,6 +5,8 @@ Provides centralized logging setup with file rotation.
 import os
 import sys
 import logging
+import stat
+import platform
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
 
@@ -29,15 +31,48 @@ def setup_logging(log_dir=None, log_level=None, app_name='radarr-webhook'):
         log_level_str = os.getenv('LOG_LEVEL', 'INFO')
         log_level = getattr(logging, log_level_str.upper(), logging.INFO)
     
+    # Print system information
+    print(f"System: {platform.system()} {platform.release()}", file=sys.stderr)
+    print(f"Python: {platform.python_version()}", file=sys.stderr)
+    print(f"Current working directory: {os.getcwd()}", file=sys.stderr)
+    print(f"User running process: {os.getuid()}:{os.getgid()}", file=sys.stderr)
+    
     # Create logs directory with full permissions if it doesn't exist
+    log_file = None
     try:
+        # Convert to absolute path for clarity in logs
+        log_dir = os.path.abspath(log_dir)
+        print(f"Log directory (absolute): {log_dir}", file=sys.stderr)
+        
         if not os.path.exists(log_dir):
             os.makedirs(log_dir, mode=0o777, exist_ok=True)
             print(f"Created log directory: {log_dir}", file=sys.stderr)
+        
+        # Ensure it's writable by setting permissions
+        os.chmod(log_dir, 0o777)
+        print(f"Set permissions on log directory: {oct(os.stat(log_dir).st_mode)}", file=sys.stderr)
+        
+        # Check if directory is writable
+        if not os.access(log_dir, os.W_OK):
+            print(f"WARNING: Log directory {log_dir} is not writable!", file=sys.stderr)
+            # Try to find what's wrong
+            dir_stat = os.stat(log_dir)
+            print(f"Directory owner: {dir_stat.st_uid}:{dir_stat.st_gid}", file=sys.stderr)
+            print(f"Directory permissions: {oct(dir_stat.st_mode)}", file=sys.stderr)
         else:
-            # Ensure it's writable
-            os.chmod(log_dir, 0o777)
-            print(f"Ensured write permissions on log directory: {log_dir}", file=sys.stderr)
+            print(f"Log directory {log_dir} is writable", file=sys.stderr)
+            
+        # Create a test file to verify write permissions
+        test_file = os.path.join(log_dir, "test_write.txt")
+        try:
+            with open(test_file, 'w') as f:
+                f.write("Test write access")
+            print(f"Successfully created test file at {test_file}", file=sys.stderr)
+            os.remove(test_file)
+            print(f"Successfully removed test file at {test_file}", file=sys.stderr)
+        except Exception as e:
+            print(f"ERROR: Could not write test file to {log_dir}: {e}", file=sys.stderr)
+            
     except Exception as e:
         print(f"Error configuring log directory {log_dir}: {e}", file=sys.stderr)
         # Fall back to current directory
@@ -62,6 +97,19 @@ def setup_logging(log_dir=None, log_level=None, app_name='radarr-webhook'):
     log_file = os.path.join(log_dir, f"{app_name}.log")
     
     try:
+        print(f"Attempting to create log file at: {log_file}", file=sys.stderr)
+        
+        # First try to create an empty file to test permissions
+        if not os.path.exists(log_file):
+            with open(log_file, 'w') as f:
+                pass
+            print(f"Created empty log file at {log_file}", file=sys.stderr)
+        
+        # Set permissions on the log file
+        os.chmod(log_file, 0o666)
+        print(f"Set permissions on log file: {oct(os.stat(log_file).st_mode)}", file=sys.stderr)
+        
+        # Create the rotating file handler
         file_handler = RotatingFileHandler(
             log_file,
             maxBytes=10 * 1024 * 1024,  # 10MB

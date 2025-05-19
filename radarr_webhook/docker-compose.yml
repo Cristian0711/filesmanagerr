@@ -2,33 +2,34 @@ version: '3.8'
 
 services:
   radarr-webhook:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: radarr-webhook
     restart: unless-stopped
+    user: "${UID:-1000}:${GID:-1000}"
     ports:
       - "5000:5000"
     volumes:
-      - ./config:/app/config
       - ./logs:/app/logs
-      - /path/to/downloads:/mnt/downloads:ro
-      - /path/to/media:/mnt/plexmedia
+      - ./config:/app/config
     environment:
       - PORT=5000
       - HOST=0.0.0.0
+      - FLASK_APP=run.py
       - FLASK_ENV=production
       - FLASK_DEBUG=0
       - LOG_LEVEL=INFO
       - LOG_DIR=/app/logs
+      - CONFIG_DIR=/app/config
       - DOWNLOAD_MONITOR_ENABLED=true
       - RADARR_ENABLED=true
       - SONARR_ENABLED=true
       - QBITTORRENT_ENABLED=true
-      - QBITTORRENT_HOST=192.168.0.65
-      - QBITTORRENT_PORT=8090
+      - QBITTORRENT_URL=http://qbittorrent:8080
       - QBITTORRENT_USERNAME=admin
-      - QBITTORRENT_PASSWORD=changeme
-      - QBITTORRENT_PATH=/mnt/downloads
-      - WEBHOOK_USERNAME=Make
-      - WEBHOOK_PASSWORD=Parola1234
-    # Ensure host directories exist with proper permissions
-    user: "${UID:-1000}:${GID:-1000}"  # Use host user/group IDs if available
+      - QBITTORRENT_PASSWORD=adminadmin
+      - PYTHONUNBUFFERED=1
+    # Add this for debugging
+    tty: true
+    stdin_open: true
