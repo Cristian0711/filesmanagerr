@@ -167,21 +167,18 @@ class FileOperations:
             return False
     
     @staticmethod
-    def is_valid_media_file(file_path: str) -> bool:
+    def ensure_parent_directory_exists(file_path: str) -> bool:
         """
-        Check if the file is a valid media file based on extension and size
+        Ensure the parent directory of a file exists
+        Returns True if successful, False otherwise
         """
         try:
-            # Check file size
-            file_size = os.path.getsize(file_path)
-            if file_size < Config.MIN_FILE_SIZE:
-                return False
-                
-            # Check extension
-            _, ext = os.path.splitext(file_path.lower())
-            return ext in Config.get_supported_extensions()
+            parent_dir = os.path.dirname(file_path)
+            if parent_dir:
+                os.makedirs(parent_dir, exist_ok=True)
+            return True
         except Exception as e:
-            logger.error(f"Error checking file {file_path}: {e}")
+            logger.error(f"Error creating parent directory for {file_path}: {e}")
             return False
     
     @staticmethod
@@ -198,6 +195,9 @@ class FileOperations:
             # Skip if destination file already exists
             if os.path.exists(dest_file):
                 return False
+                
+            # Ensure the destination directory exists
+            FileOperations.ensure_directory_exists(destination_dir)
                 
             # Try to create hardlink using os.link
             try:
@@ -300,7 +300,7 @@ class DownloadLocator:
                 if os.path.isdir(path):
                     logger.info(f"Found download folder by direct match: {path}")
                     return path
-                elif os.path.isfile(path) and FileOperations.is_valid_media_file(path):
+                elif os.path.isfile(path):
                     logger.info(f"Found download file by direct match: {path}")
                     return path
                 
@@ -311,10 +311,6 @@ class DownloadLocator:
             # Search for files first
             for root, _, files in os.walk(Config.DOWNLOAD_PATH):
                 for file_name in files:
-                    # Skip files that aren't media files
-                    if not FileOperations.is_valid_media_file(os.path.join(root, file_name)):
-                        continue
-                        
                     # Check if filename contains the hash
                     if download_id.lower() in file_name.lower():
                         file_path = os.path.join(root, file_name)

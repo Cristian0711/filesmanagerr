@@ -123,8 +123,11 @@ class QBittorrentClient:
             # Create a simplified file list
             file_list = []
             for f in files:
+                # Make sure paths use standard format with forward slashes
+                file_name = f.name.replace('\\', '/')
+                
                 file_list.append({
-                    "name": f.name,
+                    "name": file_name,
                     "size": f.size,
                     "progress": f.progress,
                     "priority": f.priority,

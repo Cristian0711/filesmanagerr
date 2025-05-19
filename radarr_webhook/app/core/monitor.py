@@ -84,6 +84,28 @@ class DownloadMonitor:
                 torrent_path=torrent_path,
                 media_type=event.media_type
             )
+            
+            # If we're using qBittorrent API, immediately try to process files
+            if Config.QBITTORRENT_ENABLED and Config.QBITTORRENT_USE_API:
+                logger.info(f"Attempting immediate file processing for {media_title}")
+                try:
+                    from app.services.qbittorrent import QBittorrentClient
+                    qbt = QBittorrentClient()
+                    
+                    # Check if torrent already exists and has some files
+                    is_completed, _ = qbt.get_torrent_status(download_id)
+                    files = qbt.get_torrent_files(download_id)
+                    
+                    if files:
+                        # Process files that are already available
+                        DownloadMonitor.process_download_folder(torrent_path, download_info)
+                        
+                        # If torrent is already completed, no need to monitor
+                        if is_completed:
+                            logger.info(f"Torrent already completed, no monitoring needed for {media_title}")
+                            return True
+                except Exception as e:
+                    logger.error(f"Error during immediate file processing: {e}")
         
         # Add to active downloads dictionary
         active_downloads[download_id] = download_info
@@ -232,23 +254,64 @@ class DownloadMonitor:
     @staticmethod
     def process_download_folder(folder_path: str, download_info: DownloadInfo) -> None:
         """
-        Process all files in the download folder and create hardlinks for new files
+        Process all files in the torrent and create hardlinks
+        Uses qBittorrent API to get file list when possible
         """
-        # Check if folder_path is actually a file (single file torrent)
+        # Try to get files directly from qBittorrent API
+        if Config.QBITTORRENT_ENABLED and Config.QBITTORRENT_USE_API:
+            try:
+                from app.services.qbittorrent import QBittorrentClient
+                qbt = QBittorrentClient()
+                
+                # Get all files in the torrent
+                files = qbt.get_torrent_files(download_info.download_id)
+                
+                if files:
+                    logger.info(f"Found {len(files)} files in torrent {download_info.download_id}")
+                    
+                    # Get base save path from qBittorrent
+                    _, info = qbt.get_torrent_status(download_info.download_id)
+                    base_path = info.get("save_path")
+                    
+                    if base_path:
+                        # Process each file from the API
+                        for file_info in files:
+                            file_path = os.path.join(base_path, file_info["name"])
+                            
+                            # Skip already processed files
+                            if download_info.is_file_processed(file_path):
+                                continue
+                            
+                            # Create hardlink (this will create directory structure)
+                            if DownloadMonitor._create_hardlink_with_structure(
+                                    source_file=file_path,
+                                    dest_base_dir=download_info.media_folder,
+                                    relative_path=file_info["name"]):
+                                # Mark as processed
+                                download_info.add_processed_file(file_path)
+                                logger.info(f"Processed {file_info['name']} for {download_info.media_title}")
+                        
+                        # All done with API, return
+                        return
+            except Exception as e:
+                logger.error(f"Error processing files from qBittorrent API: {e}")
+        
+        # Fallback: If we couldn't use the API or it failed, scan the filesystem
+        logger.info(f"Using filesystem method to process files in {folder_path}")
+        
+        # Check if folder_path is actually a file
         if os.path.isfile(folder_path):
             logger.info(f"Single file torrent detected: {folder_path}")
             # Skip if already processed
             if download_info.is_file_processed(folder_path):
                 return
                 
-            # Check if this is a file we should process
-            if FileOperations.is_valid_media_file(folder_path):
-                # Create hardlink
-                if FileOperations.create_hardlink(folder_path, download_info.media_folder):
-                    # Mark as processed
-                    download_info.add_processed_file(folder_path)
-                    file_name = os.path.basename(folder_path)
-                    logger.info(f"Processed single file {file_name} for {download_info.media_title}")
+            # Create hardlink directly - no validation
+            if FileOperations.create_hardlink(folder_path, download_info.media_folder):
+                # Mark as processed
+                download_info.add_processed_file(folder_path)
+                file_name = os.path.basename(folder_path)
+                logger.info(f"Processed single file {file_name} for {download_info.media_title}")
             return
             
         # Handle regular folder case - get all files in the folder and its subfolders
@@ -259,14 +322,69 @@ class DownloadMonitor:
                 # Skip already processed files
                 if download_info.is_file_processed(source_file):
                     continue
-                    
-                # Check if this is a file we should process
-                if FileOperations.is_valid_media_file(source_file):
-                    # Create hardlink
-                    if FileOperations.create_hardlink(source_file, download_info.media_folder):
-                        # Mark as processed
-                        download_info.add_processed_file(source_file)
-                        logger.info(f"Processed {file_name} for {download_info.media_title}")
+                
+                # Calculate the relative path from base folder
+                rel_path = os.path.relpath(source_file, folder_path)
+                
+                # Create hardlink (with directory structure)
+                if DownloadMonitor._create_hardlink_with_structure(
+                        source_file=source_file,
+                        dest_base_dir=download_info.media_folder,
+                        relative_path=rel_path):
+                    # Mark as processed
+                    download_info.add_processed_file(source_file)
+                    logger.info(f"Processed {rel_path} for {download_info.media_title}")
+    
+    @staticmethod
+    def _create_hardlink_with_structure(source_file: str, dest_base_dir: str, relative_path: str) -> bool:
+        """
+        Create a hardlink maintaining the directory structure from the torrent.
+        
+        Args:
+            source_file: Full path to the source file
+            dest_base_dir: Base destination directory
+            relative_path: Relative path within the torrent
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # Create destination directory structure
+            dest_file = os.path.join(dest_base_dir, relative_path)
+            dest_dir = os.path.dirname(dest_file)
+            
+            # Ensure the directory exists
+            if not os.path.exists(dest_dir):
+                os.makedirs(dest_dir, exist_ok=True)
+                
+            # Skip if destination file already exists
+            if os.path.exists(dest_file):
+                logger.info(f"File already exists: {dest_file}")
+                return True
+            
+            # Try to create hardlink
+            try:
+                os.link(source_file, dest_file)
+                logger.info(f"Created hardlink for {relative_path}")
+                return True
+            except OSError as e:
+                # If os.link fails (e.g., cross-filesystem), try using ln command
+                import subprocess
+                logger.warning(f"os.link failed, trying ln command: {e}")
+                result = subprocess.run(['ln', source_file, dest_file], 
+                                      capture_output=True, text=True)
+                
+                if result.returncode != 0:
+                    # If hardlink fails, try copy as fallback
+                    logger.error(f"Error creating hardlink: {result.stderr}")
+                    logger.info(f"Trying copy instead for {source_file}")
+                    subprocess.run(['cp', source_file, dest_file], check=True)
+                
+                return True
+                
+        except Exception as e:
+            logger.error(f"Error creating hardlink with structure for {source_file}: {e}")
+            return False
     
     @staticmethod
     def get_active_downloads_status() -> Dict[str, Any]:
