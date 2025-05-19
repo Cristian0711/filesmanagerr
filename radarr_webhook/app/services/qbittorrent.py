@@ -126,15 +126,19 @@ class QBittorrentClient:
                 # Make sure paths use standard format with forward slashes
                 file_name = f.name.replace('\\', '/')
                 
-                file_list.append({
+                # Create a file info dictionary with safe attribute access
+                file_info = {
                     "name": file_name,
-                    "size": f.size,
-                    "progress": f.progress,
-                    "priority": f.priority,
-                    "is_seed": f.is_seed,
-                    "piece_range": f.piece_range,
-                    "availability": f.availability
-                })
+                    "size": getattr(f, 'size', 0),
+                    "progress": getattr(f, 'progress', 0)
+                }
+                
+                # Add optional attributes if they exist
+                for attr in ['priority', 'is_seed', 'piece_range', 'availability']:
+                    if hasattr(f, attr):
+                        file_info[attr] = getattr(f, attr)
+                
+                file_list.append(file_info)
             
             return file_list
             
