@@ -150,8 +150,7 @@ class QBittorrentClient:
             torrent_hash: The hash of the torrent to check
             
         Returns:
-            Path where the torrent is being downloaded, or None if not found
-            For single-file torrents, returns the full path to the file
+            Full absolute path where the torrent is being downloaded, or None if not found
         """
         _, info = self.get_torrent_status(torrent_hash)
         
@@ -160,8 +159,17 @@ class QBittorrentClient:
         
         # First try to get content_path which points directly to the content (file or folder)
         if 'content_path' in info and info['content_path']:
-            logger.info(f"Found content_path for {torrent_hash}: {info['content_path']}")
-            return info['content_path']
+            content_path = info['content_path']
+            # Make sure this is an absolute path
+            if os.path.isabs(content_path):
+                logger.info(f"Found content_path for {torrent_hash}: {content_path}")
+                return content_path
+            else:
+                # If it's a relative path (just filename), prefix with save_path
+                if 'save_path' in info and info['save_path']:
+                    abs_path = os.path.join(info['save_path'], content_path)
+                    logger.info(f"Found content_path (made absolute) for {torrent_hash}: {abs_path}")
+                    return abs_path
             
         # If not available, check save_path + name
         if 'save_path' in info and info['save_path'] and 'name' in info:

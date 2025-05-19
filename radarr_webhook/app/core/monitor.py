@@ -276,7 +276,17 @@ class DownloadMonitor:
                     if base_path:
                         # Process each file from the API
                         for file_info in files:
-                            file_path = os.path.join(base_path, file_info["name"])
+                            # Ensure we have a proper full path
+                            file_path = file_info["name"]
+                            
+                            # Check if path is already absolute
+                            if not os.path.isabs(file_path):
+                                file_path = os.path.join(base_path, file_path)
+                            
+                            # Check if the file exists before processing
+                            if not os.path.exists(file_path):
+                                logger.warning(f"File doesn't exist yet (still downloading): {file_path}")
+                                continue
                             
                             # Skip already processed files
                             if download_info.is_file_processed(file_path):
