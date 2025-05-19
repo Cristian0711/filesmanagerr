@@ -21,10 +21,10 @@ services:
       - RADARR_ENABLED=true
       - SONARR_ENABLED=true
       - QBITTORRENT_ENABLED=true
-      - QBITTORRENT_HOST=qbittorrent
-      - QBITTORRENT_PORT=8080
+      - QBITTORRENT_HOST=192.168.0.65
+      - QBITTORRENT_PORT=8090
       - QBITTORRENT_USERNAME=admin
-      - QBITTORRENT_PASSWORD=adminadmin
+      - QBITTORRENT_PASSWORD=changeme
       - QBITTORRENT_PATH=/mnt/downloads
       - WEBHOOK_USERNAME=Make
       - WEBHOOK_PASSWORD=Parola1234
@@ -35,7 +35,7 @@ services:
     container_name: qbittorrent
     restart: unless-stopped
     ports:
-      - "8090:8090" # WebUI
+      - "8080:8080" # WebUI
       - "6881:6881" # Torrent port
       - "6881:6881/udp" # Torrent port UDP
     volumes:
@@ -45,4 +45,4 @@ services:
       - PUID=1000
       - PGID=1000
       - TZ=Europe/London
-      - WEBUI_PORT=8090 
+      - WEBUI_PORT=8080 
