@@ -15,10 +15,13 @@ echo "- Logs directory: $(pwd)/logs"
 echo "- Config directory: $(pwd)/config"
 echo "- Current user: $(id)"
 
-# Export current user/group IDs for Docker
-export UID=$(id -u)
-export GID=$(id -g)
-echo "Exported UID=$UID and GID=$GID for Docker"
+# We're already running as root, so we don't need to export UID/GID
+# Just print who we're running as
+echo "Running Docker as root user"
+
+# Clean up container if it already exists
+echo "Stopping any existing containers..."
+docker-compose down
 
 # Start Docker containers in detached mode
 echo "Starting Docker containers..."

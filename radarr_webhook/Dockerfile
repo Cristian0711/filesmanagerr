@@ -14,6 +14,10 @@ RUN mkdir -p /app/config /app/logs \
     && chmod -R 777 /app/config /app/logs \
     && echo "Created config and logs directories with full permissions"
 
+# Add debug scripts
+COPY debug_volumes.sh /app/
+RUN chmod +x /app/debug_volumes.sh
+
 # Environment variables
 ENV FLASK_APP=run.py
 ENV FLASK_ENV=production
@@ -25,5 +29,5 @@ ENV PYTHONUNBUFFERED=1
 # Expose the Flask port
 EXPOSE 5000
 
-# Run the application
-CMD ["python", "run.py"] 
+# Run the application with debugging
+CMD ["/bin/bash", "-c", "/app/debug_volumes.sh && python run.py"] 

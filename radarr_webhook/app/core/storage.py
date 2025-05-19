@@ -125,6 +125,26 @@ class TorrentStorage:
             # Make sure the directory exists
             os.makedirs(os.path.dirname(cls._storage_file), exist_ok=True)
             
+            # Verify we can write to the directory
+            config_dir = os.path.dirname(cls._storage_file)
+            print(f"Checking directory permissions for: {config_dir}", file=sys.stderr)
+            
+            if not os.access(config_dir, os.W_OK):
+                print(f"WARNING: Config directory is not writable: {config_dir}", file=sys.stderr)
+                # Try to set permissions
+                try:
+                    os.chmod(config_dir, 0o777)
+                    print(f"Set permissions on config directory: {config_dir}", file=sys.stderr)
+                except Exception as e:
+                    print(f"Failed to set permissions: {e}", file=sys.stderr)
+            
+            # Create a test file first to verify we can write
+            test_file = cls._storage_file + '.test'
+            with open(test_file, 'wb') as f:
+                f.write(b'test')
+            os.remove(test_file)
+            print(f"Successfully verified write access to {config_dir}", file=sys.stderr)
+            
             # Use atomic writing pattern to prevent corruption
             temp_file = cls._storage_file + '.tmp'
             with open(temp_file, 'wb') as f:
