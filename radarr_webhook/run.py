@@ -5,7 +5,7 @@ This script starts the Flask web server that handles Radarr webhook notification
 """
 
 from app.main import run_app
-from app.core.config import logger
+from app.core.logging import logger
 
 if __name__ == "__main__":
     try:

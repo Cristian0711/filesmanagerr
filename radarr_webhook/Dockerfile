@@ -9,7 +9,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Create volumes for data persistence
+# Create directories for data persistence
+RUN mkdir -p /app/config /app/logs
 VOLUME ["/app/config", "/app/logs"]
 
 # Set environment variables
@@ -17,6 +18,8 @@ ENV PORT=5000
 ENV HOST=0.0.0.0
 ENV FLASK_ENV=production
 ENV FLASK_DEBUG=0
+ENV LOG_LEVEL=INFO
+ENV LOG_DIR=/app/logs
 ENV DOWNLOAD_MONITOR_ENABLED=true
 ENV RADARR_ENABLED=true
 ENV SONARR_ENABLED=true

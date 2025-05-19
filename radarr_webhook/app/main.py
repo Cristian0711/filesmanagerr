@@ -11,16 +11,14 @@ parent_dir = os.path.dirname(current_dir)
 sys.path.append(parent_dir)
 
 from app.api import app
-from app.core.config import Config, setup_logging, logger
+from app.core.config import Config
+from app.core.logging import logger
 
 
 def main():
     """
     Main entry point function
     """
-    # Set up logging
-    setup_logging()
-    
     # Log startup details
     logger.info("Starting Radarr/Sonarr Webhook Server")
     logger.info(f"Server running on http://{Config.HOST}:{Config.PORT}")

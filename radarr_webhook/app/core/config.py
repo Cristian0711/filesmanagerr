@@ -3,27 +3,13 @@ Configuration module for *arr webhook applications.
 Handles environment variables, settings, and shared configurations.
 """
 import os
-import logging
 from dotenv import load_dotenv
+
+# Import the new centralized logging system
+from app.core.logging import logger
 
 # Load environment variables
 load_dotenv()
-
-# Configure logging
-def setup_logging():
-    """Configure and setup logging for the application"""
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler("webhook.log"),
-            logging.StreamHandler()
-        ]
-    )
-    return logging.getLogger("arr-webhook")
-
-# Create logger instance
-logger = setup_logging()
 
 # Application settings
 class Config:
@@ -33,6 +19,10 @@ class Config:
     DEBUG = os.getenv('FLASK_DEBUG', '1') == '1'
     PORT = int(os.getenv('PORT', 5000))
     HOST = os.getenv('HOST', '0.0.0.0')
+    
+    # Logging settings
+    LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
+    LOG_DIR = os.getenv('LOG_DIR', 'logs')
     
     # Authentication
     AUTH_TOKEN = os.getenv('AUTH_TOKEN')
