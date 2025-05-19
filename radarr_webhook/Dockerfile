@@ -9,8 +9,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Create directories for data persistence
-RUN mkdir -p /app/config /app/logs
+# Create directories for data persistence with proper permissions
+RUN mkdir -p /app/config /app/logs && \
+    chmod -R 777 /app/logs /app/config
+
+# Set up volumes
 VOLUME ["/app/config", "/app/logs"]
 
 # Set environment variables

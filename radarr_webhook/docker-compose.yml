@@ -30,3 +30,5 @@ services:
       - QBITTORRENT_PATH=/mnt/downloads
       - WEBHOOK_USERNAME=Make
       - WEBHOOK_PASSWORD=Parola1234
+    # Ensure host directories exist with proper permissions
+    user: "${UID:-1000}:${GID:-1000}"  # Use host user/group IDs if available
