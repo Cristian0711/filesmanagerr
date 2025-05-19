@@ -274,6 +274,9 @@ class DownloadMonitor:
                     base_path = info.get("save_path")
                     
                     if base_path:
+                        # Get the torrent folder/file name 
+                        torrent_name = info.get("name", "")
+                        
                         # Process each file from the API
                         for file_info in files:
                             # Ensure we have a proper full path
@@ -292,14 +295,24 @@ class DownloadMonitor:
                             if download_info.is_file_processed(file_path):
                                 continue
                             
+                            # Get just the file or subdirectory path without the torrent folder name
+                            relative_path = file_info["name"]
+                            
+                            # If the file is in the torrent root folder, just use the filename
+                            if torrent_name and relative_path.startswith(torrent_name + "/"):
+                                # Remove the torrent folder from the path
+                                relative_path = relative_path[len(torrent_name)+1:]
+                            elif "/" not in relative_path:  # Single file in root
+                                relative_path = os.path.basename(relative_path)
+                            
                             # Create hardlink (this will create directory structure)
                             if DownloadMonitor._create_hardlink_with_structure(
                                     source_file=file_path,
                                     dest_base_dir=download_info.media_folder,
-                                    relative_path=file_info["name"]):
+                                    relative_path=relative_path):
                                 # Mark as processed
                                 download_info.add_processed_file(file_path)
-                                logger.info(f"Processed {file_info['name']} for {download_info.media_title}")
+                                logger.info(f"Processed {relative_path} for {download_info.media_title}")
                         
                         # All done with API, return
                         return
@@ -324,6 +337,9 @@ class DownloadMonitor:
                 logger.info(f"Processed single file {file_name} for {download_info.media_title}")
             return
             
+        # Get the torrent folder name (last part of the path)
+        torrent_folder_name = os.path.basename(folder_path)
+        
         # Handle regular folder case - get all files in the folder and its subfolders
         for root, _, files in os.walk(folder_path):
             for file_name in files:
@@ -335,6 +351,20 @@ class DownloadMonitor:
                 
                 # Calculate the relative path from base folder
                 rel_path = os.path.relpath(source_file, folder_path)
+                
+                # For series, we want to keep any subdirectory structure WITHIN the torrent folder
+                # but not recreate the torrent folder itself
+                if download_info.media_type == "series":
+                    # If it's a TV series with season folders, keep the season folder structure
+                    if rel_path.lower().startswith("season ") or rel_path.lower().startswith("s0") or rel_path.lower().startswith("s1"):
+                        # This is already a season folder or subpath, keep it as is
+                        pass
+                    elif os.sep in rel_path:  # Contains subdirectories
+                        # Check if the first directory is the same as the torrent name
+                        rel_parts = rel_path.split(os.sep, 1)
+                        if len(rel_parts) > 1 and rel_parts[0] == torrent_folder_name:
+                            # Skip the torrent folder name
+                            rel_path = rel_parts[1]
                 
                 # Create hardlink (with directory structure)
                 if DownloadMonitor._create_hardlink_with_structure(
