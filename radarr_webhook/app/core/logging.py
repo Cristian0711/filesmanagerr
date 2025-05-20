@@ -93,6 +93,12 @@ def setup_logging(log_dir=None, log_level=None, app_name='radarr-webhook'):
         '%Y-%m-%d %H:%M:%S'
     )
     
+    # Create a console handler first - ensure messages are visible in Docker
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+    print("Added console handler to logger", file=sys.stderr)
+    
     # Create rotating file handler (10MB max size, 5 backup files)
     log_file = os.path.join(log_dir, f"{app_name}.log")
     
@@ -100,9 +106,14 @@ def setup_logging(log_dir=None, log_level=None, app_name='radarr-webhook'):
         print(f"Attempting to create log file at: {log_file}", file=sys.stderr)
         
         # First try to create an empty file to test permissions
+        # Create the parent directory
+        if not os.path.exists(os.path.dirname(log_file)):
+            os.makedirs(os.path.dirname(log_file), exist_ok=True)
+        
+        # Create the file if it doesn't exist
         if not os.path.exists(log_file):
             with open(log_file, 'w') as f:
-                pass
+                f.write(f"Log file created at {datetime.now().isoformat()}\n")
             print(f"Created empty log file at {log_file}", file=sys.stderr)
         
         # Set permissions on the log file
@@ -120,15 +131,10 @@ def setup_logging(log_dir=None, log_level=None, app_name='radarr-webhook'):
         logger.addHandler(file_handler)
         
         # Print success message to stderr (will show in Docker logs)
-        print(f"Logging to file: {log_file}", file=sys.stderr)
+        print(f"Successfully added file handler for: {log_file}", file=sys.stderr)
     except Exception as e:
         print(f"Error setting up log file {log_file}: {e}", file=sys.stderr)
         print("Log messages will only appear in console output", file=sys.stderr)
-    
-    # Always add console handler for Docker visibility
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
     
     # Log initial messages
     logger.info(f"Logging initialized at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -140,5 +146,5 @@ def setup_logging(log_dir=None, log_level=None, app_name='radarr-webhook'):
     return logger
 
 
-# Default logger instance
+# Create the default logger instance
 logger = setup_logging() 
