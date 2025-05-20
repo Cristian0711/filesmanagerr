@@ -5,6 +5,7 @@ Monkey-patch script to force logging to work by creating the logger before the a
 import os
 import sys
 import logging
+import subprocess
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
 
@@ -54,6 +55,14 @@ print("===== MONKEY PATCH COMPLETE =====")
 # Log a test message
 root_logger.info("Logger monkey-patched successfully")
 
-# Now proceed with importing the application
-from app.core.logging import logger
-logger.info("Application logger imported after monkey patch") 
+# Now run the actual application as a subprocess
+print("===== STARTING APPLICATION =====")
+sys.stdout.flush()
+sys.stderr.flush()
+
+# Run the application
+try:
+    result = subprocess.run(["python", "run.py"], check=True)
+except subprocess.CalledProcessError as e:
+    print(f"Error running application: {e}")
+    sys.exit(1) 
